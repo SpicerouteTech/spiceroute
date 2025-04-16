@@ -1,0 +1,49 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Podman
+      uses: redhat-actions/setup-podman@v1
+      with:
+        podman-cpu: 2
+        podman-memory: 4G
+    
+    - name: Build container
+      run: |
+        podman build -t spiceroute/api:latest .
+    
+    - name: Run tests
+      run: |
+        podman run --rm spiceroute/api:latest pytest
+    
+    - name: Push to container registry
+      if: github.ref == 'refs/heads/main'
+      run: |
+        echo "${{ secrets.REGISTRY_PASSWORD }}" | podman login -u "${{ secrets.REGISTRY_USERNAME }}" --password-stdin ${{ secrets.REGISTRY_URL }}
+        podman push spiceroute/api:latest ${{ secrets.REGISTRY_URL }}/spiceroute/api:latest
+    
+  deploy:
+    needs: build-and-test
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+    - name: Deploy to Kubernetes
+      uses: azure/k8s-deploy@v1
+      with:
+        namespace: spiceroute
+        manifests: |
+          k8s/deployment.yaml
+          k8s/service.yaml
+          k8s/configmap.yaml
+        images: |
+          ${{ secrets.REGISTRY_URL }}/spiceroute/api:latest 

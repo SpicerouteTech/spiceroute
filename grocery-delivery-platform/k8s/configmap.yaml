@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: spiceroute-config
+  namespace: spiceroute
+data:
+  APP_NAME: "SpiceRoute.ai"
+  ENVIRONMENT: "production"
+  API_V1_STR: "/api/v1"
+  PROJECT_NAME: "SpiceRoute.ai"
+  MONGODB_DB_NAME: "spiceroute"
+  ELASTICSEARCH_URL: "http://elasticsearch:9200"
+  AWS_REGION: "us-east-1"
+  SMTP_HOST: "smtp.gmail.com"
+  SMTP_PORT: "587" 

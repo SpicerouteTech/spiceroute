@@ -1,0 +1,65 @@
+version: '3.8'
+
+services:
+  # MongoDB Service
+  mongodb:
+    image: mongo:6.0
+    container_name: spiceroute-mongodb
+    restart: always
+    environment:
+      MONGO_INITDB_ROOT_USERNAME_FILE: /run/secrets/mongodb-username
+      MONGO_INITDB_ROOT_PASSWORD_FILE: /run/secrets/mongodb-password
+      MONGO_INITDB_DATABASE: spiceroute
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+      # Mount our mongo-setup.js if it exists
+      - ../grocery-delivery-platform/scripts/mongo-setup.js:/docker-entrypoint-initdb.d/mongo-setup.js:ro
+    secrets:
+      - mongodb-username
+      - mongodb-password
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - spiceroute-network
+
+  # Elasticsearch Service
+  elasticsearch:
+    image: elasticsearch:8.8.0
+    container_name: spiceroute-elasticsearch
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    ports:
+      - "9200:9200"
+      - "9300:9300"
+    volumes:
+      - elasticsearch_data:/usr/share/elasticsearch/data
+    networks:
+      - spiceroute-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9200"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+secrets:
+  mongodb-username:
+    file: ./secrets/mongodb-username.txt
+  mongodb-password:
+    file: ./secrets/mongodb-password.txt
+
+networks:
+  spiceroute-network:
+    driver: bridge
+
+volumes:
+  mongodb_data:
+  elasticsearch_data: 

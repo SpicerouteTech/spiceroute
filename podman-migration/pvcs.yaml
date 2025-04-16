@@ -1,0 +1,69 @@
+apiVersion: v1
+items:
+- apiVersion: v1
+  kind: PersistentVolumeClaim
+  metadata:
+    annotations:
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"v1","kind":"PersistentVolumeClaim","metadata":{"annotations":{},"name":"elasticsearch-pvc","namespace":"spiceroute"},"spec":{"accessModes":["ReadWriteOnce"],"resources":{"requests":{"storage":"5Gi"}}}}
+      pv.kubernetes.io/bind-completed: "yes"
+      pv.kubernetes.io/bound-by-controller: "yes"
+      volume.beta.kubernetes.io/storage-provisioner: docker.io/hostpath
+      volume.kubernetes.io/storage-provisioner: docker.io/hostpath
+    creationTimestamp: "2025-04-07T04:54:47Z"
+    finalizers:
+    - kubernetes.io/pvc-protection
+    name: elasticsearch-pvc
+    namespace: spiceroute
+    resourceVersion: "1599"
+    uid: af3c2347-2e3f-4893-a858-c8b7574122c7
+  spec:
+    accessModes:
+    - ReadWriteOnce
+    resources:
+      requests:
+        storage: 5Gi
+    storageClassName: hostpath
+    volumeMode: Filesystem
+    volumeName: elasticsearch-pv
+  status:
+    accessModes:
+    - ReadWriteOnce
+    capacity:
+      storage: 5Gi
+    phase: Bound
+- apiVersion: v1
+  kind: PersistentVolumeClaim
+  metadata:
+    annotations:
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"v1","kind":"PersistentVolumeClaim","metadata":{"annotations":{},"name":"mongodb-pvc","namespace":"spiceroute"},"spec":{"accessModes":["ReadWriteOnce"],"resources":{"requests":{"storage":"1Gi"}}}}
+      pv.kubernetes.io/bind-completed: "yes"
+      pv.kubernetes.io/bound-by-controller: "yes"
+      volume.beta.kubernetes.io/storage-provisioner: docker.io/hostpath
+      volume.kubernetes.io/storage-provisioner: docker.io/hostpath
+    creationTimestamp: "2025-04-07T04:53:43Z"
+    finalizers:
+    - kubernetes.io/pvc-protection
+    name: mongodb-pvc
+    namespace: spiceroute
+    resourceVersion: "1479"
+    uid: 1d6494f5-1c04-4317-a139-ffa56c444f86
+  spec:
+    accessModes:
+    - ReadWriteOnce
+    resources:
+      requests:
+        storage: 1Gi
+    storageClassName: hostpath
+    volumeMode: Filesystem
+    volumeName: mongodb-pv
+  status:
+    accessModes:
+    - ReadWriteOnce
+    capacity:
+      storage: 1Gi
+    phase: Bound
+kind: List
+metadata:
+  resourceVersion: ""
