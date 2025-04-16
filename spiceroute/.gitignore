@@ -241,4 +241,27 @@ WiredTigerLog.*
 WiredTigerPreplog.*
 
 # System files
-.DS_Store 
+.DS_Store
+
+# Non-Spiceroute project files
+.adobe/
+.qdrant/
+qdrant_storage/
+.cursor/
+.lima/
+k8s-data/
+scripts/installation/
+scripts/monitoring/
+
+# Additional system files
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.DocumentRevisions-V100
+.fseventsd
+.Spotlight-V100
+.TemporaryItems
+.Trashes
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent 
