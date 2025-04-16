@@ -1,0 +1,10 @@
+{
+"existing_cluster_id":"0131-234143-valve560",
+"name":"Satish-job1",
+"timeout":"36000",
+"max_retries":"1",
+"notebook_task":{
+  "notebook_path" : "/Users/satish.bomma@divergence.one/05.1-Basic-ETL/Python/Solutions/07-Loading-Data-and-Productionalizing"
+  
+ }
+}

@@ -1,0 +1,49 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: spiceroute-api
+  namespace: spiceroute
+  labels:
+    app: spiceroute
+    tier: backend
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: spiceroute
+      tier: backend
+  template:
+    metadata:
+      labels:
+        app: spiceroute
+        tier: backend
+    spec:
+      containers:
+      - name: spiceroute-api
+        image: spiceroute/api:latest
+        ports:
+        - containerPort: 8000
+        envFrom:
+        - configMapRef:
+            name: spiceroute-config
+        - secretRef:
+            name: spiceroute-secrets
+        resources:
+          requests:
+            cpu: "100m"
+            memory: "256Mi"
+          limits:
+            cpu: "500m"
+            memory: "512Mi"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 8000
+          initialDelaySeconds: 5
+          periodSeconds: 5 

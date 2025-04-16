@@ -1,0 +1,8 @@
+# Nested Git repositories and IDE files
+IdeaProjects/
+PycharmProjects/
+Project/
+spiceroute/.git/
+.idea/
+.vscode/
+*.iml

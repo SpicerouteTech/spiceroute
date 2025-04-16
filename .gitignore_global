@@ -1,0 +1,83 @@
+# macOS system files
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon
+._*
+.Spotlight-V100
+.Trashes
+
+# User directories
+Applications/
+Desktop/
+Documents/
+Downloads/
+Library/
+Movies/
+Music/
+Pictures/
+Public/
+
+# IDE and editor files
+.idea/
+.vscode/
+*.swp
+*.swo
+.atom/
+*.sublime-workspace
+*.sublime-project
+
+# Development tools and configurations
+.vim/
+.config/
+.local/
+.cache/
+.bash_sessions/
+.bash_history
+.zsh_history
+.python_history
+.ipython/
+.jupyter/
+.ipynb_checkpoints/
+.pyenv/
+.conda/
+.anaconda/
+.virtualenvs/
+
+# Package managers and build tools
+.npm/
+.yarn/
+.gradle/
+.m2/
+.cargo/
+.rustup/
+
+# Cloud and development tools
+.aws/
+.docker/
+.kube/
+.minikube/
+.terraform/
+.vagrant/
+
+# Logs and databases
+*.log
+.mongodb/
+
+# Personal configuration files
+.gitconfig
+.bash_profile
+.bashrc
+.zshrc
+.zshenv
+.profile
+.netrc
+.ssh/
+.CFUserTextEncoding
+
+# Temporary files
+.Trash/
+*.tmp
+*.temp
+.lesshst
+.viminfo 
