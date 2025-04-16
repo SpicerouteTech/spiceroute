@@ -221,4 +221,24 @@ yarn-error.log*
 
 # Logs and databases
 *.log
-*.sqlite 
+*.sqlite
+
+# IDE and Extensions
+.cursor/extensions/
+.vscode/
+
+# Development and Build
+k8s-data/
+.lima/
+
+# Logs and Data
+*.onnx
+*.dylib
+
+# MongoDB specific
+mongodb/journal/
+WiredTigerLog.*
+WiredTigerPreplog.*
+
+# System files
+.DS_Store 
