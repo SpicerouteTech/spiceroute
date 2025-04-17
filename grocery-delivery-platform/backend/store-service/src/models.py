@@ -1,7 +1,9 @@
 from datetime import datetime
-from typing import List, Optional
-from pydantic import BaseModel, Field, EmailStr, validator
+from typing import List, Optional, Dict
+from pydantic import BaseModel, Field, EmailStr, validator, constr, condecimal
 from bson import ObjectId
+from decimal import Decimal
+import re
 
 
 class PyObjectId(ObjectId):
@@ -40,10 +42,10 @@ class Address(BaseModel):
 
 
 class BusinessHours(BaseModel):
-    day: str
-    open_time: str
-    close_time: str
-    is_closed: bool = False
+    day: int = Field(..., ge=0, le=6)  # 0 = Sunday, 6 = Saturday
+    open_time: str = Field(..., regex="^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$")
+    close_time: str = Field(..., regex="^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$")
+    is_closed: bool = Field(default=False)
     
     @validator('day')
     def validate_day(cls, v):
@@ -93,7 +95,6 @@ class StoreOwnerProfile(BaseModel):
     @validator('phone')
     def validate_phone(cls, v):
         # Simple validation for US phone numbers
-        import re
         if not re.match(r'^\d{10}$|^\d{3}-\d{3}-\d{4}$', v):
             raise ValueError("Phone number must be 10 digits or in format XXX-XXX-XXXX")
         return v
@@ -151,7 +152,6 @@ class StoreOwnerProfileUpdate(BaseModel):
     def validate_phone(cls, v):
         if v is None:
             return v
-        import re
         if not re.match(r'^\d{10}$|^\d{3}-\d{3}-\d{4}$', v):
             raise ValueError("Phone number must be 10 digits or in format XXX-XXX-XXXX")
         return v
@@ -160,4 +160,127 @@ class StoreOwnerProfileUpdate(BaseModel):
         arbitrary_types_allowed = True
         json_encoders = {
             ObjectId: str
-        } 
+        }
+
+
+class StoreOwner(BaseModel):
+    email: EmailStr = Field(..., description="Store owner's email address")
+    name: str = Field(..., min_length=2, max_length=100)
+    oauth_id: str = Field(..., min_length=5, max_length=100)
+    oauth_provider: str = Field(..., pattern="^(google|facebook)$")
+    picture: Optional[str] = Field(None, max_length=500)
+    phone: Optional[str] = Field(None, max_length=15)
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    last_login: Optional[datetime] = None
+    is_active: bool = Field(default=True)
+    stores: List[str] = Field(default_factory=list)  # List of store IDs
+    
+    @validator('name')
+    def validate_name(cls, v):
+        if not re.match("^[a-zA-Z0-9 .-]+$", v):
+            raise ValueError('Name contains invalid characters')
+        return v.strip()
+    
+    @validator('picture')
+    def validate_picture_url(cls, v):
+        if v and not v.startswith(('http://', 'https://')):
+            raise ValueError('Picture URL must start with http:// or https://')
+        return v
+        
+    @validator('phone')
+    def validate_phone(cls, v):
+        if v and not re.match("^\+?1?\d{9,15}$", v):
+            raise ValueError('Invalid phone number format')
+        return v
+
+
+class StoreLocation(BaseModel):
+    address: str = Field(..., min_length=5, max_length=200)
+    city: str = Field(..., min_length=2, max_length=100)
+    state: str = Field(..., min_length=2, max_length=50)
+    postal_code: str = Field(..., min_length=5, max_length=10)
+    country: str = Field(..., min_length=2, max_length=50)
+    coordinates: Optional[Dict[str, float]] = Field(None)  # {"lat": float, "lng": float}
+
+
+class Store(BaseModel):
+    store_id: str = Field(..., min_length=5)
+    name: str = Field(..., min_length=2, max_length=100)
+    description: str = Field(..., min_length=10, max_length=1000)
+    owner_email: EmailStr
+    location: StoreLocation
+    business_hours: List[BusinessHours]
+    phone: str = Field(..., regex="^\+?1?\d{9,15}$")
+    email: EmailStr
+    website: Optional[str] = Field(None, max_length=200)
+    delivery_radius: float = Field(..., gt=0)  # in kilometers
+    minimum_order: Decimal = Field(..., ge=0)
+    delivery_fee: Decimal = Field(..., ge=0)
+    is_active: bool = Field(default=True)
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    
+    @validator('website')
+    def validate_website(cls, v):
+        if v and not v.startswith(('http://', 'https://')):
+            raise ValueError('Website URL must start with http:// or https://')
+        return v
+
+
+class Category(BaseModel):
+    category_id: str = Field(..., min_length=5)
+    store_id: str
+    name: str = Field(..., min_length=2, max_length=50)
+    description: Optional[str] = Field(None, max_length=500)
+    image_url: Optional[str] = Field(None, max_length=500)
+    parent_id: Optional[str] = None
+    is_active: bool = Field(default=True)
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    
+    @validator('image_url')
+    def validate_image_url(cls, v):
+        if v and not v.startswith(('http://', 'https://')):
+            raise ValueError('Image URL must start with http:// or https://')
+        return v
+
+
+class Product(BaseModel):
+    product_id: str = Field(..., min_length=5)
+    store_id: str
+    category_id: str
+    name: str = Field(..., min_length=2, max_length=100)
+    description: str = Field(..., min_length=10, max_length=1000)
+    price: Decimal = Field(..., ge=0)
+    sale_price: Optional[Decimal] = Field(None, ge=0)
+    unit: str = Field(..., regex="^(piece|gram|kg|lb|oz|ml|l|pack)$")
+    stock_quantity: int = Field(..., ge=0)
+    image_url: Optional[str] = Field(None, max_length=500)
+    is_available: bool = Field(default=True)
+    is_featured: bool = Field(default=False)
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    
+    @validator('sale_price')
+    def validate_sale_price(cls, v, values):
+        if v and v >= values['price']:
+            raise ValueError('Sale price must be less than regular price')
+        return v
+    
+    @validator('image_url')
+    def validate_image_url(cls, v):
+        if v and not v.startswith(('http://', 'https://')):
+            raise ValueError('Image URL must start with http:// or https://')
+        return v
+
+
+class TokenData(BaseModel):
+    email: EmailStr
+    exp: datetime
+    oauth_provider: str
+
+
+class Token(BaseModel):
+    access_token: str
+    token_type: str = Field(default="bearer")
+    expires_in: int = Field(..., gt=0) 

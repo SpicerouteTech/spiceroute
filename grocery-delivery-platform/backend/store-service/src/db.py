@@ -4,9 +4,10 @@ from datetime import datetime
 from typing import List, Optional, Dict, Any
 from motor.motor_asyncio import AsyncIOMotorClient
 from bson import ObjectId
-from models import StoreOwnerProfile, StoreOwnerProfileUpdate
+from models import Store, Category, Product
 import pymongo
 from fastapi import HTTPException, status
+from pymongo import ASCENDING, DESCENDING, IndexModel
 
 
 logger = logging.getLogger(__name__)
@@ -14,169 +15,173 @@ logger = logging.getLogger(__name__)
 # MongoDB setup
 MONGODB_URL = os.getenv("MONGODB_URL", "mongodb://localhost:27017")
 DB_NAME = os.getenv("DB_NAME", "spiceroute")
-COLLECTION_NAME = "store_profiles"
 
 
-class StoreProfileDB:
-    client: AsyncIOMotorClient = None
+class DatabaseService:
+    def __init__(self, mongo_url: str, database_name: str = "spiceroute"):
+        self.client = AsyncIOMotorClient(mongo_url)
+        self.db = self.client[database_name]
+        
+        # Collections
+        self.stores = self.db.stores
+        self.categories = self.db.categories
+        self.products = self.db.products
+        
+    async def init_indexes(self):
+        """Initialize database indexes"""
+        try:
+            # Store indexes
+            await self.stores.create_indexes([
+                IndexModel([("store_id", ASCENDING)], unique=True),
+                IndexModel([("owner_email", ASCENDING)]),
+                IndexModel([("location.coordinates", "2dsphere")])
+            ])
+            
+            # Category indexes
+            await self.categories.create_indexes([
+                IndexModel([("category_id", ASCENDING)], unique=True),
+                IndexModel([("store_id", ASCENDING)]),
+                IndexModel([("parent_id", ASCENDING)])
+            ])
+            
+            # Product indexes
+            await self.products.create_indexes([
+                IndexModel([("product_id", ASCENDING)], unique=True),
+                IndexModel([("store_id", ASCENDING)]),
+                IndexModel([("category_id", ASCENDING)]),
+                IndexModel([("name", "text"), ("description", "text")])
+            ])
+            
+            logger.info("Database indexes initialized successfully")
+        except Exception as e:
+            logger.error(f"Error initializing database indexes: {str(e)}")
+            raise
     
-    async def connect_to_mongodb(self):
-        """Connect to MongoDB database."""
-        logger.info(f"Connecting to MongoDB at {MONGODB_URL}")
-        self.client = AsyncIOMotorClient(MONGODB_URL)
-        await self.create_indexes()
-        logger.info("Connected to MongoDB")
+    # Store Operations
     
-    async def close_mongodb_connection(self):
-        """Close MongoDB connection."""
-        if self.client is not None:
-            self.client.close()
-            logger.info("MongoDB connection closed")
+    async def create_store(self, store: Store) -> Dict:
+        """Create a new store"""
+        try:
+            result = await self.stores.insert_one(store.dict())
+            return await self.get_store(store.store_id)
+        except Exception as e:
+            logger.error(f"Error creating store: {str(e)}")
+            raise
     
-    async def create_indexes(self):
-        """Create indexes for the collection."""
-        db = self.client[DB_NAME]
-        await db[COLLECTION_NAME].create_index([("user_id", pymongo.ASCENDING)], unique=True)
-        await db[COLLECTION_NAME].create_index([("store_name", pymongo.TEXT)])
-        await db[COLLECTION_NAME].create_index([("email", pymongo.ASCENDING)])
-        await db[COLLECTION_NAME].create_index([("category", pymongo.ASCENDING)])
+    async def get_store(self, store_id: str) -> Optional[Dict]:
+        """Get store by ID"""
+        return await self.stores.find_one({"store_id": store_id})
     
-    async def get_profile_by_id(self, profile_id: str) -> Optional[Dict[str, Any]]:
-        """Get a store profile by its ID."""
-        if not ObjectId.is_valid(profile_id):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST, 
-                detail=f"Invalid profile ID format: {profile_id}"
-            )
-        
-        db = self.client[DB_NAME]
-        profile = await db[COLLECTION_NAME].find_one({"_id": ObjectId(profile_id)})
-        return profile
+    async def get_stores_by_owner(self, owner_email: str) -> List[Dict]:
+        """Get all stores owned by a store owner"""
+        cursor = self.stores.find({"owner_email": owner_email})
+        return await cursor.to_list(None)
     
-    async def get_profile_by_user_id(self, user_id: str) -> Optional[Dict[str, Any]]:
-        """Get a store profile by user ID."""
-        db = self.client[DB_NAME]
-        profile = await db[COLLECTION_NAME].find_one({"user_id": user_id})
-        return profile
-    
-    async def create_profile(self, profile_data: StoreOwnerProfile) -> Dict[str, Any]:
-        """Create a new store profile."""
-        db = self.client[DB_NAME]
-        profile_dict = profile_data.dict(by_alias=True)
-        
-        # Check if a profile for this user_id already exists
-        existing_profile = await db[COLLECTION_NAME].find_one({"user_id": profile_dict["user_id"]})
-        if existing_profile:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail=f"A profile already exists for user_id: {profile_dict['user_id']}"
-            )
-        
-        # Insert the new profile
-        result = await db[COLLECTION_NAME].insert_one(profile_dict)
-        
-        # Get the newly created profile
-        new_profile = await db[COLLECTION_NAME].find_one({"_id": result.inserted_id})
-        return new_profile
-    
-    async def update_profile(self, profile_id: str, update_data: StoreOwnerProfileUpdate) -> Optional[Dict[str, Any]]:
-        """Update an existing store profile."""
-        if not ObjectId.is_valid(profile_id):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST, 
-                detail=f"Invalid profile ID format: {profile_id}"
-            )
-        
-        db = self.client[DB_NAME]
-        
-        # Exclude None values (don't update fields that weren't provided)
-        update_dict = {k: v for k, v in update_data.dict(exclude_unset=True).items() if v is not None}
-        
-        if not update_dict:
-            # No valid fields to update
-            return await self.get_profile_by_id(profile_id)
-        
-        # Add updated_at timestamp
-        update_dict["updated_at"] = datetime.utcnow()
-        
-        # Use the $set operator to update only the fields provided
-        result = await db[COLLECTION_NAME].update_one(
-            {"_id": ObjectId(profile_id)},
-            {"$set": update_dict}
+    async def update_store(self, store_id: str, update_data: Dict) -> Optional[Dict]:
+        """Update store information"""
+        update_data["updated_at"] = datetime.utcnow()
+        await self.stores.update_one(
+            {"store_id": store_id},
+            {"$set": update_data}
         )
-        
-        if result.matched_count == 0:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Profile with ID {profile_id} not found"
-            )
-        
-        return await self.get_profile_by_id(profile_id)
+        return await self.get_store(store_id)
     
-    async def delete_profile(self, profile_id: str) -> bool:
-        """Delete a store profile by its ID."""
-        if not ObjectId.is_valid(profile_id):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST, 
-                detail=f"Invalid profile ID format: {profile_id}"
-            )
-        
-        db = self.client[DB_NAME]
-        result = await db[COLLECTION_NAME].delete_one({"_id": ObjectId(profile_id)})
-        
-        if result.deleted_count == 0:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Profile with ID {profile_id} not found"
-            )
-        
-        return True
+    # Category Operations
     
-    async def list_profiles(self, skip: int = 0, limit: int = 10, 
-                           filters: Dict[str, Any] = None) -> Dict[str, Any]:
-        """List store profiles with pagination and optional filtering."""
-        db = self.client[DB_NAME]
-        query = filters or {}
-        
-        # Get total count for pagination
-        total = await db[COLLECTION_NAME].count_documents(query)
-        
-        # Get paginated results
-        cursor = db[COLLECTION_NAME].find(query).skip(skip).limit(limit)
-        profiles = await cursor.to_list(length=limit)
-        
-        return {
-            "total": total,
-            "page": skip // limit + 1,
-            "limit": limit,
-            "items": profiles
-        }
+    async def create_category(self, category: Category) -> Dict:
+        """Create a new category"""
+        try:
+            # Verify store exists
+            store = await self.get_store(category.store_id)
+            if not store:
+                raise ValueError("Store not found")
+                
+            result = await self.categories.insert_one(category.dict())
+            return await self.get_category(category.category_id)
+        except Exception as e:
+            logger.error(f"Error creating category: {str(e)}")
+            raise
     
-    async def search_profiles(self, query: str, skip: int = 0, limit: int = 10) -> Dict[str, Any]:
-        """Search store profiles by text."""
-        db = self.client[DB_NAME]
-        
-        # Use text search on indexed fields
-        text_query = {"$text": {"$search": query}}
-        
-        # Get total count for pagination
-        total = await db[COLLECTION_NAME].count_documents(text_query)
-        
-        # Get paginated results with relevance sorting
-        cursor = db[COLLECTION_NAME].find(
-            text_query,
-            {"score": {"$meta": "textScore"}}
-        ).sort([("score", {"$meta": "textScore"})]).skip(skip).limit(limit)
-        
-        profiles = await cursor.to_list(length=limit)
-        
-        return {
-            "total": total,
-            "page": skip // limit + 1,
-            "limit": limit,
-            "items": profiles
-        }
-
-
-# Create a singleton instance
-store_profile_db = StoreProfileDB() 
+    async def get_category(self, category_id: str) -> Optional[Dict]:
+        """Get category by ID"""
+        return await self.categories.find_one({"category_id": category_id})
+    
+    async def get_store_categories(self, store_id: str) -> List[Dict]:
+        """Get all categories for a store"""
+        cursor = self.categories.find({"store_id": store_id})
+        return await cursor.to_list(None)
+    
+    async def update_category(self, category_id: str, update_data: Dict) -> Optional[Dict]:
+        """Update category information"""
+        update_data["updated_at"] = datetime.utcnow()
+        await self.categories.update_one(
+            {"category_id": category_id},
+            {"$set": update_data}
+        )
+        return await self.get_category(category_id)
+    
+    # Product Operations
+    
+    async def create_product(self, product: Product) -> Dict:
+        """Create a new product"""
+        try:
+            # Verify store and category exist
+            store = await self.get_store(product.store_id)
+            if not store:
+                raise ValueError("Store not found")
+                
+            category = await self.get_category(product.category_id)
+            if not category:
+                raise ValueError("Category not found")
+                
+            result = await self.products.insert_one(product.dict())
+            return await self.get_product(product.product_id)
+        except Exception as e:
+            logger.error(f"Error creating product: {str(e)}")
+            raise
+    
+    async def get_product(self, product_id: str) -> Optional[Dict]:
+        """Get product by ID"""
+        return await self.products.find_one({"product_id": product_id})
+    
+    async def get_category_products(self, category_id: str) -> List[Dict]:
+        """Get all products in a category"""
+        cursor = self.products.find({"category_id": category_id})
+        return await cursor.to_list(None)
+    
+    async def get_store_products(self, store_id: str, skip: int = 0, limit: int = 50) -> List[Dict]:
+        """Get all products for a store with pagination"""
+        cursor = self.products.find({"store_id": store_id}).skip(skip).limit(limit)
+        return await cursor.to_list(None)
+    
+    async def update_product(self, product_id: str, update_data: Dict) -> Optional[Dict]:
+        """Update product information"""
+        update_data["updated_at"] = datetime.utcnow()
+        await self.products.update_one(
+            {"product_id": product_id},
+            {"$set": update_data}
+        )
+        return await self.get_product(product_id)
+    
+    async def search_products(self, store_id: str, query: str, skip: int = 0, limit: int = 20) -> List[Dict]:
+        """Search products by text query within a store"""
+        cursor = self.products.find({
+            "store_id": store_id,
+            "$text": {"$search": query}
+        }).skip(skip).limit(limit)
+        return await cursor.to_list(None)
+    
+    async def update_product_stock(self, product_id: str, quantity_change: int) -> Optional[Dict]:
+        """Update product stock quantity"""
+        try:
+            await self.products.update_one(
+                {"product_id": product_id},
+                {
+                    "$inc": {"stock_quantity": quantity_change},
+                    "$set": {"updated_at": datetime.utcnow()}
+                }
+            )
+            return await self.get_product(product_id)
+        except Exception as e:
+            logger.error(f"Error updating product stock: {str(e)}")
+            raise 
