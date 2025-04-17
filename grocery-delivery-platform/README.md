@@ -9,12 +9,14 @@ This initial version focuses on launching with a single Indian grocery store par
 ## Core Features
 
 ### Customer Experience
-- Authentication & Onboarding
+- Authentication & Onboarding via Google/Facebook
 - Store Discovery & Browsing
 - Product Catalog
-- Shopping Experience
-- Checkout Process
-- Order Tracking
+- Shopping Cart Management
+- Order Processing & Tracking
+- Multiple Delivery Addresses
+- Payment Method Management
+- Real-time Order Status Updates
 - Notifications
 
 ### Store Manager Experience
@@ -22,6 +24,8 @@ This initial version focuses on launching with a single Indian grocery store par
 - Inventory Management
 - Order Management
 - Basic Analytics
+- Product Catalog Management
+- Store Profile Management
 
 ### Admin Portal
 - User Management
@@ -38,16 +42,31 @@ This initial version focuses on launching with a single Indian grocery store par
 - Responsive design
 
 ### Backend Services
-- Authentication Service
-- User Service
-- Store Service
-- Product Service
+
+#### Store Owner Service
+- Authentication Service (OAuth with Google/Facebook)
+- Store Profile Management
+- Catalog Management Service
+- Inventory Management
+- Order Fulfillment
+
+#### Consumer Service
+- Authentication Service (OAuth with Google/Facebook)
+- Profile Management
+  - Multiple delivery addresses
+  - Payment methods
+  - Order history
+- Shopping Service
+  - Cart management
+  - Order processing
+  - Order tracking
+- Product Browsing & Search
+
+#### Shared Services
 - Search Service
-- Order Service
 - Payment Service
 - Delivery Service
 - Notification Service
-- Catalog Service
 
 ### Data Architecture
 - MongoDB for flexible data storage
@@ -66,6 +85,22 @@ This initial version focuses on launching with a single Indian grocery store par
   - Secure token-based invites
   - Automatic expiration via TTL index
   - Tracks invite usage and creation
+
+#### Consumer Management
+- `consumers`: Manages consumer accounts
+  - OAuth-based authentication (Google/Facebook)
+  - Profile information
+  - Multiple delivery addresses
+  - Payment methods
+  - Shopping cart
+  - Order history
+
+- `orders`: Manages order lifecycle
+  - Order details and items
+  - Delivery information
+  - Payment information
+  - Status tracking
+  - Timestamps
 
 For detailed database requirements and validation rules, see [REQUIREMENTS.md](./REQUIREMENTS.md).
 
@@ -94,19 +129,24 @@ To run all tests:
 
 ## Services Details
 
-### Catalog Service
-The Catalog Service manages product information and categories:
-- Product management with full CRUD operations
-- Category organization and hierarchy
-- Product search and filtering capabilities
-- Integration with Search Service for advanced discovery
-
-### Store Service
-The Store Service handles store profile and management:
+### Store Owner Service
+The Store Owner Service manages store operations:
 - Store profile management
+- Product catalog CRUD operations
+- Inventory management
+- Order fulfillment
 - Business hours and availability
 - Location and service area configuration
-- Store owner permissions
+
+### Consumer Service
+The Consumer Service handles customer interactions:
+- Profile management
+- Multiple delivery addresses
+- Payment methods
+- Shopping cart
+- Order management
+- Order tracking
+- Product browsing
 
 ## Deployment
 
@@ -175,4 +215,31 @@ Note: Always use strong, unique passwords in production environments and ensure 
 
 ### Kubernetes Deployment
 1. Create the namespace:
+   ```bash
+   kubectl apply -f k8s/namespace.yaml
    ```
+
+2. Deploy MongoDB and Elasticsearch:
+   ```bash
+   kubectl apply -f k8s/mongodb.yaml
+   kubectl apply -f k8s/elasticsearch.yaml
+   ```
+
+3. Deploy the services:
+   ```bash
+   kubectl apply -f k8s/store-service/
+   kubectl apply -f k8s/consumer-service/
+   ```
+
+4. Deploy Kong API Gateway:
+   ```bash
+   kubectl apply -f k8s/kong-config.yaml
+   kubectl apply -f k8s/kong-deployment.yaml
+   ```
+
+### Service Ports
+- Store Owner Service: 8000
+- Consumer Service: 8001
+- MongoDB: 27017
+- Elasticsearch: 9200
+- Kong API Gateway: 8443 (HTTPS)
