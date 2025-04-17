@@ -5,6 +5,7 @@ from contextlib import asynccontextmanager
 
 from db import catalog_db
 from routes import router
+from .routes import image_routes
 
 # Configure logging
 logging.basicConfig(
@@ -60,6 +61,9 @@ async def log_requests(request: Request, call_next):
 # Include the API router
 app.include_router(router, prefix="/api/v1")
 
+# Register routes
+app.include_router(image_routes.router)
+
 
 @app.get("/", tags=["Root"])
 async def root():
@@ -69,6 +73,11 @@ async def root():
         "status": "running",
         "version": "1.0.0",
     }
+
+
+@app.get("/health")
+async def health_check():
+    return {"status": "healthy"}
 
 
 if __name__ == "__main__":
