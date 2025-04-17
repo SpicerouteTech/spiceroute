@@ -1,6 +1,36 @@
 version: '3.8'
 
 services:
+  store-service:
+    build:
+      context: ./backend/store-service
+      target: development
+    volumes:
+      - ./backend/store-service:/app
+      - store-service-venv:/opt/pysetup/.venv
+    ports:
+      - "8000:8000"
+    environment:
+      - MONGODB_URI=mongodb://mongodb:27017/spiceroute
+      - REDIS_URI=redis://redis:6379/0
+      - JWT_SECRET=your-secret-key-for-development
+      - GOOGLE_CLIENT_ID=your-google-client-id
+      - FACEBOOK_CLIENT_ID=your-facebook-client-id
+      - ENVIRONMENT=development
+      - LOG_LEVEL=DEBUG
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
+
   # MongoDB Service
   mongodb:
     image: mongo:6.0
@@ -18,11 +48,11 @@ services:
     networks:
       - spiceroute-network
     healthcheck:
-      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/spiceroute --quiet
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 30s
+      start_period: 40s
 
   # Elasticsearch Service
   elasticsearch:
@@ -97,10 +127,27 @@ services:
       - spiceroute-network
     command: npm start
 
+  redis:
+    image: redis:7.0-alpine
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+
 networks:
   spiceroute-network:
     driver: bridge
 
 volumes:
   mongodb_data:
-  elasticsearch_data: 
+  elasticsearch_data:
+  redis_data:
+  store-service-venv: 

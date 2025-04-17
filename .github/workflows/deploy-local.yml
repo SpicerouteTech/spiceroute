@@ -1,0 +1,109 @@
+name: Deploy to Local K8s
+
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types:
+      - completed
+    branches:
+      - main
+
+jobs:
+  generate-k8s-manifests:
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Generate Kubernetes manifests
+      run: |
+        mkdir -p k8s-generated
+        
+        # Generate store-service deployment
+        cat << EOF > k8s-generated/store-service.yaml
+        apiVersion: apps/v1
+        kind: Deployment
+        metadata:
+          name: store-service
+          namespace: spiceroute
+        spec:
+          replicas: 1
+          selector:
+            matchLabels:
+              app: store-service
+          template:
+            metadata:
+              labels:
+                app: store-service
+            spec:
+              containers:
+              - name: store-service
+                image: ghcr.io/${{ github.repository }}/store-service:${{ github.sha }}
+                ports:
+                - containerPort: 8000
+                env:
+                - name: MONGODB_URI
+                  valueFrom:
+                    secretKeyRef:
+                      name: mongodb-credentials
+                      key: uri
+                - name: REDIS_URI
+                  valueFrom:
+                    secretKeyRef:
+                      name: redis-credentials
+                      key: uri
+                resources:
+                  limits:
+                    memory: "512Mi"
+                    cpu: "500m"
+                  requests:
+                    memory: "256Mi"
+                    cpu: "250m"
+        ---
+        apiVersion: v1
+        kind: Service
+        metadata:
+          name: store-service
+          namespace: spiceroute
+        spec:
+          selector:
+            app: store-service
+          ports:
+          - port: 8000
+            targetPort: 8000
+          type: ClusterIP
+        EOF
+
+    - name: Upload Kubernetes manifests
+      uses: actions/upload-artifact@v4
+      with:
+        name: k8s-manifests
+        path: k8s-generated/
+
+  create-deployment-pr:
+    needs: generate-k8s-manifests
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Download K8s manifests
+      uses: actions/download-artifact@v4
+      with:
+        name: k8s-manifests
+        path: k8s-generated
+
+    - name: Create Pull Request
+      uses: peter-evans/create-pull-request@v6
+      with:
+        title: "Update K8s manifests for deployment"
+        body: |
+          This PR updates the Kubernetes manifests for deployment.
+          
+          Generated from workflow run: ${{ github.event.workflow_run.html_url }}
+        branch: update-k8s-manifests
+        base: main
+        delete-branch: true
+        commit-message: "Update K8s manifests for deployment"
+        labels: deployment 
