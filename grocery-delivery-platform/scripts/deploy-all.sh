@@ -9,6 +9,8 @@ echo "--- Starting Full Deployment Process for Spiceroute ---"
 NAMESPACE="spiceroute"
 K8S_DIR="../k8s" # Relative path from script location
 AUTH_SERVICE_K8S_DIR="../backend/auth-service/k8s" # Relative path
+STORE_SERVICE_K8S_DIR="../backend/store-service/k8s" # Relative path
+CATALOG_SERVICE_K8S_DIR="../backend/catalog-service/k8s" # Relative path
 
 # --- 1. Ensure Namespace Exists ---
 echo "[1/8] Ensuring namespace '$NAMESPACE' exists..."
@@ -52,13 +54,17 @@ echo "   - Deploying Auth Service..."
 kubectl apply -f "$AUTH_SERVICE_K8S_DIR/deployment.yaml" -n "$NAMESPACE"
 kubectl apply -f "$AUTH_SERVICE_K8S_DIR/service.yaml" -n "$NAMESPACE"
 
-# Add deployments/services for store-service, catalog-service, frontend-service here later
-# echo "   - Deploying Store Service..."
-# kubectl apply -f "../backend/store-service/k8s/deployment.yaml" -n "$NAMESPACE"
-# kubectl apply -f "../backend/store-service/k8s/service.yaml" -n "$NAMESPACE"
-# echo "   - Deploying Catalog Service..."
-# kubectl apply -f "../backend/catalog-service/k8s/deployment.yaml" -n "$NAMESPACE"
-# kubectl apply -f "../backend/catalog-service/k8s/service.yaml" -n "$NAMESPACE"
+# Store Service
+echo "   - Deploying Store Service..."
+kubectl apply -f "$STORE_SERVICE_K8S_DIR/deployment.yaml" -n "$NAMESPACE"
+kubectl apply -f "$STORE_SERVICE_K8S_DIR/service.yaml" -n "$NAMESPACE"
+
+# Catalog Service
+echo "   - Deploying Catalog Service..."
+kubectl apply -f "$CATALOG_SERVICE_K8S_DIR/deployment.yaml" -n "$NAMESPACE"
+kubectl apply -f "$CATALOG_SERVICE_K8S_DIR/service.yaml" -n "$NAMESPACE"
+
+# Add deployments/services for frontend-service here later
 # echo "   - Deploying Frontend Service..." # If frontend runs in K8s
 # kubectl apply -f "../frontend/k8s/deployment.yaml" -n "$NAMESPACE"
 # kubectl apply -f "../frontend/k8s/service.yaml" -n "$NAMESPACE"
@@ -78,6 +84,12 @@ kubectl wait --namespace "$NAMESPACE" --for=condition=ready pod --selector=app=k
 echo "   - Waiting for Auth Service..."
 # Make sure the selector 'app=auth-service' matches the label in auth-service/k8s/deployment.yaml
 kubectl wait --namespace "$NAMESPACE" --for=condition=ready pod --selector=app=auth-service --timeout=120s
+
+echo "   - Waiting for Store Service..."
+kubectl wait --namespace "$NAMESPACE" --for=condition=ready pod --selector=app=store-service --timeout=120s
+
+echo "   - Waiting for Catalog Service..."
+kubectl wait --namespace "$NAMESPACE" --for=condition=ready pod --selector=app=catalog-service --timeout=120s
 
 # Add waits for other application services if needed
 
@@ -103,6 +115,9 @@ echo "Attempting to get Kong Proxy LoadBalancer IP (may take a moment)..."
 KONG_PROXY_IP=$(kubectl get svc -n "$NAMESPACE" kong-proxy -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || echo "")
 if [[ -n "$KONG_PROXY_IP" ]]; then
   echo "  Kong Proxy URL: http://$KONG_PROXY_IP"
+  echo "  Auth Service: http://$KONG_PROXY_IP/auth"
+  echo "  Store Profile Service: http://$KONG_PROXY_IP/store"
+  echo "  Catalog Service: http://$KONG_PROXY_IP/catalog"
 else
   echo "  Kong Proxy LoadBalancer IP is pending or not available."
   # Fallback to NodePort if LoadBalancer IP isn't assigned
@@ -112,6 +127,9 @@ else
      NODE_IP=$(kubectl get nodes -o jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}' 2>/dev/null || kubectl get nodes -o jsonpath='{.items[0].status.addresses[?(@.type=="ExternalIP")].address}' 2>/dev/null || echo "NODE_IP_UNKNOWN")
      if [[ "$NODE_IP" != "NODE_IP_UNKNOWN" ]]; then
         echo "  Alternatively, try accessing via NodePort: http://$NODE_IP:$KONG_NODE_PORT"
+        echo "  Auth Service: http://$NODE_IP:$KONG_NODE_PORT/auth"
+        echo "  Store Profile Service: http://$NODE_IP:$KONG_NODE_PORT/store"
+        echo "  Catalog Service: http://$NODE_IP:$KONG_NODE_PORT/catalog"
      else
         echo "  Could not determine Node IP for NodePort access. NodePort is: $KONG_NODE_PORT"
      fi

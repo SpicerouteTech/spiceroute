@@ -46,13 +46,27 @@ data:
     - name: catalog-service
       url: http://catalog-service.spiceroute.svc.cluster.local:8000
       routes:
-      - name: catalog-routes
+      - name: catalog-public-routes
         paths:
-        - /catalog
-        - /catalog/
-        - /catalog/.*
+        - /catalog/items$
+        - /catalog/items/[^/]+$
+        - /catalog/search
+        - /catalog/featured
+        - /catalog/stores/[^/]+/items$
         methods:
         - GET
+        strip_path: true
+        plugins:
+        - name: rate-limiting
+          config:
+            minute: 60
+            policy: local
+      - name: catalog-protected-routes
+        paths:
+        - /catalog/items$
+        - /catalog/items/
+        - /catalog/items/.*
+        methods:
         - POST
         - PUT
         - DELETE
