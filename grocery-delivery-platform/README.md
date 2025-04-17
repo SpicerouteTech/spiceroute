@@ -47,6 +47,7 @@ This initial version focuses on launching with a single Indian grocery store par
 - Payment Service
 - Delivery Service
 - Notification Service
+- Catalog Service
 
 ### Data Architecture
 - MongoDB for flexible data storage
@@ -79,6 +80,33 @@ For detailed database requirements and validation rules, see [REQUIREMENTS.md](.
 - Modular microservices architecture
 - Schema validation and human review
 - Comprehensive testing strategy
+
+### Testing
+The platform includes automated testing for all services:
+- Unit tests for individual components
+- Integration tests for service interactions
+- API tests to validate endpoints
+
+To run all tests:
+```bash
+./scripts/run_tests.sh
+```
+
+## Services Details
+
+### Catalog Service
+The Catalog Service manages product information and categories:
+- Product management with full CRUD operations
+- Category organization and hierarchy
+- Product search and filtering capabilities
+- Integration with Search Service for advanced discovery
+
+### Store Service
+The Store Service handles store profile and management:
+- Store profile management
+- Business hours and availability
+- Location and service area configuration
+- Store owner permissions
 
 ## Deployment
 
